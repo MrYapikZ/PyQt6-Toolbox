@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import List, Set
 
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
@@ -6,6 +7,8 @@ from PyQt6.QtWidgets import QWidget, QFileDialog, QMessageBox, QAbstractItemView
 from PyQt6.QtCore import Qt, QSortFilterProxyModel
 
 from app.services.csv_manager import CSVManager
+from app.services.ffmpeg_manager import FFMPEGManager
+from app.services.file_manager import FileManager
 from app.ui.img2mp4_widget_iu import Ui_Form
 from app.config.img2mp4 import Data as img2mp4_data
 
@@ -41,6 +44,7 @@ class Img2Mp4Handler(QWidget):
         self.ui.pushButton_scan.clicked.connect(self.on_scan_csv_into_list)
         self.ui.pushButton_addFile.clicked.connect(self.on_move_selected_from_scan_to_convert)
         self.ui.pushButton_clearFile.clicked.connect(self.on_clear_convert_list)
+        self.ui.pushButton_convert.clicked.connect(self.on_convert_all_in_convert_list)
 
         # Combobox data
         for project in img2mp4_data.project_list:
@@ -162,3 +166,50 @@ class Img2Mp4Handler(QWidget):
             if t not in existing_scan:
                 self.model_available.appendRow(QStandardItem(t))
         self.model_available.sort(0, Qt.SortOrder.AscendingOrder)
+
+    def on_convert_all_in_convert_list(self):
+        row_count = self.model_convert.rowCount()
+        if row_count == 0:
+            QMessageBox.information(self, "Info", "Tidak ada item di daftar konversi.")
+            return
+
+        try:
+            quality = int(self.ui.spinBox_qualityLevel.value())
+        except Exception:
+            quality = 15
+
+        failed: List[str] = []
+
+        # Ambil pilihan project
+        project = self.ui.comboBox_projectLetter.currentText().upper() if self.ui.comboBox_projectLetter else "RIMBA"
+        tipe = self.ui.comboBox_projectType.currentText().upper() if self.ui.comboBox_projectType else "VFX"
+
+        for i in range(row_count):
+            token = self.model_convert.item(i).text()
+            try:
+                parts = token.split("_")
+
+                if len(parts) == 3:
+                    ep, sq, sh = parts
+                elif len(parts) == 4:
+                    ep, sq, a, sh = parts
+                    sq = f"{sq}_{a}"
+                else:
+                    raise ValueError(f"Invalid token format: {token}")
+
+            except ValueError:
+                failed.append(f"{token} (format tidak valid)")
+                continue
+
+            input_seq, output_file = FileManager().img2mp4_build_paths(ep=ep, sq=sq, sh=sh, project=project, tipe=tipe)
+
+            try:
+                asyncio.run(FFMPEGManager().img_to_mp4(input_sequence=input_seq, output_file=output_file, quality=quality))
+            except Exception as e:
+                failed.append(f"{token} -> {e}")
+
+        if failed:
+            msg = "Beberapa konversi gagal:\n\n" + "\n".join(failed)
+            QMessageBox.critical(self, "Selesai dengan error", msg)
+        else:
+            QMessageBox.information(self, "Selesai", "Semua item berhasil dikonversi.")

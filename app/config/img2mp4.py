@@ -1,7 +1,7 @@
 class Data:
     project_list = [
-        ["RIMBA", "jgt", "O"],
-        ["JAGAT", "rmb", "K"]
+        ["RIMBA", "rmb", "O"],
+        ["JAGAT", "jgt", "K"]
     ]
 
     project_types = ["COMP", "VFX"]
