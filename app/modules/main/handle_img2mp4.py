@@ -2,7 +2,7 @@ import os
 from typing import List, Set
 
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import QWidget, QFileDialog, QMessageBox, QAbstractItemView
+from PyQt6.QtWidgets import QWidget, QFileDialog, QMessageBox, QAbstractItemView, QListView
 from PyQt6.QtCore import Qt, QSortFilterProxyModel
 
 from app.services.csv_manager import CSVManager
@@ -17,13 +17,17 @@ class Img2Mp4Handler(QWidget):
         self.ui.setupUi(self)
 
         # Models
-        # self.modelScan = ()
+        self.model_available = QStandardItemModel(self)
+        self.model_convert = QStandardItemModel(self)
+        self.ui.listView_available.setModel(self.model_available)
+        self.ui.listView_listConvert.setModel(self.model_convert)
 
         # Proxy scan
         self.proxyScan = QSortFilterProxyModel(self.ui.listView_available)
-        self.proxyScan.setSourceModel(QStandardItemModel(self.ui.listView_available))
+        self.proxyScan.setSourceModel(self.model_available)
         self.proxyScan.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.proxyScan.setFilterKeyColumn(0)
+        self.ui.listView_available.setModel(self.proxyScan)
         self.ui.lineEdit_availableSearch.textChanged.connect(self.proxyScan.setFilterFixedString)
 
         # List view
@@ -89,7 +93,7 @@ class Img2Mp4Handler(QWidget):
 
         try:
             items: Set[str] = set()
-            csv_data = CSVManager(path).read_csv()
+            csv_data = CSVManager(path).read_csv(skip_header=True)
             for row in csv_data:
                 if len(row) < 3:
                     continue
@@ -103,58 +107,58 @@ class Img2Mp4Handler(QWidget):
             QMessageBox.critical(self, "Error", f"Gagal membaca CSV:\n{e}")
 
     def _populate_scan_list(self, items: List[str]):
-        self.ui.listView_available.clear()
+        self.model_available.clear()
         for text in items:
-            self.ui.listView_available.appendRow(QStandardItem(text))
-        self.ui.listView_available.sort(0, Qt.SortOrder.AscendingOrder)
+            self.model_available.appendRow(QStandardItem(text))
+        self.model_available.sort(0, Qt.SortOrder.AscendingOrder)
 
     def on_move_selected_from_scan_to_convert(self):
-        selected = self.ui.listView_listConvert.selectionModel().selectedIndexes()
+        selected = self.ui.listView_available.selectionModel().selectedIndexes()
         if not selected:
             return
 
         to_move_texts: List[str] = []
         source_rows = set()
         for proxy_idx in selected:
-            src_idx = self.ui.lineEdit_availableSearch.mapToSource(proxy_idx)
+            src_idx = self.proxyScan.mapToSource(proxy_idx)
             source_rows.add(src_idx.row())
-            text = self.ui.listView_available.item(src_idx.row()).text()
+            text = self.model_available.item(src_idx.row()).text()
             to_move_texts.append(text)
 
-        existing = {self.ui.listView_listConvert.item(i).text() for i in range(self.ui.listView_listConvert.rowCount())}
+        existing = {self.model_convert.item(i).text() for i in range(self.model_convert.rowCount())}
         for t in to_move_texts:
             if t not in existing:
-                self.ui.listView_listConvert.appendRow(QStandardItem(t))
+                self.model_convert.appendRow(QStandardItem(t))
 
         for row in sorted(source_rows, reverse=True):
-            self.ui.listView_available.removeRow(row)
+            self.model_available.removeRow(row)
 
-        self.ui.listView_available.sort(0, Qt.SortOrder.AscendingOrder)
+        self.model_available.sort(0, Qt.SortOrder.AscendingOrder)
 
     def on_delete_in_convert(self):
         selected = self.ui.listView_listConvert.selectionModel().selectedIndexes()
         if not selected:
             return
 
-        texts = sorted({self.ui.listView_listConvert.item(idx.row()).text() for idx in selected})
+        texts = sorted({self.model_convert.item(idx.row()).text() for idx in selected})
         for idx in sorted({i.row() for i in selected}, reverse=True):
             self.ui.listView_listConvert.removeRow(idx)
 
-        existing_scan = {self.ui.listView_available.item(i).text() for i in
+        existing_scan = {self.model_available.item(i).text() for i in
                          range(self.ui.listView_available.rowCount())}
         for t in texts:
             if t not in existing_scan:
-                self.ui.listView_available.appendRow(QStandardItem(t))
-        self.ui.listView_available.sort(0, Qt.SortOrder.AscendingOrder)
+                self.model_available.appendRow(QStandardItem(t))
+        self.model_available.sort(0, Qt.SortOrder.AscendingOrder)
 
     def on_clear_convert_list(self):
-        all_texts = [self.ui.listView_listConvert.item(i).text() for i in
-                     range(self.ui.listView_listConvert.rowCount())]
-        self.ui.listView_listConvert.clear()
+        all_texts = [self.model_convert.item(i).text() for i in
+                     range(self.model_convert.rowCount())]
+        self.model_convert.clear()
 
-        existing_scan = {self.ui.listView_available.item(i).text() for i in
-                         range(self.ui.listView_available.rowCount())}
+        existing_scan = {self.model_available.item(i).text() for i in
+                         range(self.model_available.rowCount())}
         for t in all_texts:
             if t not in existing_scan:
-                self.ui.listView_available.appendRow(QStandardItem(t))
-        self.ui.listView_available.sort(0, Qt.SortOrder.AscendingOrder)
+                self.model_available.appendRow(QStandardItem(t))
+        self.model_available.sort(0, Qt.SortOrder.AscendingOrder)
