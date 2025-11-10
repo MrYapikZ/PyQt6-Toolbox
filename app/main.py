@@ -10,7 +10,7 @@ class MainUI(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowTitle("Patopo - Toolbox")
-        self.ui.label_version.setText("v0.0.0")
+        self.ui.label_version.setText("v0.1.0")
 
         self.ui.tabWidget_main.addTab(Img2Mp4Handler(), "Img2Mp4")
 
