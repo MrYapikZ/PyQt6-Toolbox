@@ -1,12 +1,13 @@
 import os
 from typing import List, Set
 
-from PyQt6.QtGui import QStandardItem
-from PyQt6.QtWidgets import QWidget, QFileDialog, QMessageBox
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QStandardItem, QStandardItemModel
+from PyQt6.QtWidgets import QWidget, QFileDialog, QMessageBox, QAbstractItemView
+from PyQt6.QtCore import Qt, QSortFilterProxyModel
 
 from app.services.csv_manager import CSVManager
 from app.ui.img2mp4_widget_iu import Ui_Form
+from app.config.img2mp4 import Data as img2mp4_data
 
 
 class Img2Mp4Handler(QWidget):
@@ -14,6 +15,64 @@ class Img2Mp4Handler(QWidget):
         super().__init__()
         self.ui = Ui_Form()
         self.ui.setupUi(self)
+
+        # Models
+        # self.modelScan = ()
+
+        # Proxy scan
+        self.proxyScan = QSortFilterProxyModel(self.ui.listView_available)
+        self.proxyScan.setSourceModel(QStandardItemModel(self.ui.listView_available))
+        self.proxyScan.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.proxyScan.setFilterKeyColumn(0)
+        self.ui.lineEdit_availableSearch.textChanged.connect(self.proxyScan.setFilterFixedString)
+
+        # List view
+        self.ui.listView_available.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.ui.listView_available.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.ui.listView_listConvert.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.ui.listView_listConvert.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+
+        # Buttons
+        self.ui.pushButton_locateCSV.clicked.connect(self.on_browse_csv)
+        self.ui.pushButton_scan.clicked.connect(self.on_scan_csv_into_list)
+        self.ui.pushButton_addFile.clicked.connect(self.on_move_selected_from_scan_to_convert)
+        self.ui.pushButton_clearFile.clicked.connect(self.on_clear_convert_list)
+
+        # Combobox data
+        for project in img2mp4_data.project_list:
+            self.ui.comboBox_projectLetter.addItem(project[0])
+        self.ui.comboBox_projectType.addItems(img2mp4_data.project_types)
+
+        # Spinbox value
+        self.ui.spinBox_qualityLevel.setMinimum(1)
+        self.ui.spinBox_qualityLevel.setMaximum(31)
+        self.ui.spinBox_qualityLevel.setValue(15)
+
+        # Other
+        self.enable_drag_drop_lineedits()
+
+    def enable_drag_drop_lineedits(self):
+        self.ui.lineEdit_pathCSV.setAcceptDrops(True)
+
+        def handle_drag_enter(event):
+            if event.mimeData().hasUrls():
+                for url in event.mimeData().urls():
+                    if url.isLocalFile() and url.toLocalFile().lower().endswith(".csv"):
+                        event.acceptProposedAction()
+                        return
+            event.ignore()
+
+        def handle_drop(event):
+            for url in event.mimeData().urls():
+                if url.isLocalFile() and url.toLocalFile().lower().endswith(".csv"):
+                    self.ui.lineEdit_pathCSV.setText(url.toLocalFile())
+                    event.acceptProposedAction()
+                    return
+            event.ignore()
+
+        # tempelkan event handler langsung ke widget aslinya
+        self.ui.lineEdit_pathCSV.dragEnterEvent = handle_drag_enter
+        self.ui.lineEdit_pathCSV.dropEvent = handle_drop
 
     def on_browse_csv(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -81,19 +140,21 @@ class Img2Mp4Handler(QWidget):
         for idx in sorted({i.row() for i in selected}, reverse=True):
             self.ui.listView_listConvert.removeRow(idx)
 
-        existing_scan = {self.ui.listView_available.item(i).text() for i in range(self.ui.listView_available.rowCount())}
+        existing_scan = {self.ui.listView_available.item(i).text() for i in
+                         range(self.ui.listView_available.rowCount())}
         for t in texts:
             if t not in existing_scan:
                 self.ui.listView_available.appendRow(QStandardItem(t))
         self.ui.listView_available.sort(0, Qt.SortOrder.AscendingOrder)
 
     def on_clear_convert_list(self):
-        all_texts = [self.ui.listView_listConvert.item(i).text() for i in range(self.ui.listView_listConvert.rowCount())]
+        all_texts = [self.ui.listView_listConvert.item(i).text() for i in
+                     range(self.ui.listView_listConvert.rowCount())]
         self.ui.listView_listConvert.clear()
 
-        existing_scan = {self.ui.listView_available.item(i).text() for i in range(self.ui.listView_available.rowCount())}
+        existing_scan = {self.ui.listView_available.item(i).text() for i in
+                         range(self.ui.listView_available.rowCount())}
         for t in all_texts:
             if t not in existing_scan:
                 self.ui.listView_available.appendRow(QStandardItem(t))
         self.ui.listView_available.sort(0, Qt.SortOrder.AscendingOrder)
-
