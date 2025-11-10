@@ -202,6 +202,10 @@ class Img2Mp4Handler(QWidget):
                 continue
 
             input_seq, output_file = FileManager().img2mp4_build_paths(ep=ep, sq=sq, sh=sh, project=project, tipe=tipe)
+            output_folder = os.path.dirname(output_file)
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder, exist_ok=True)
+                print(f"Created folder: {output_folder}")
 
             try:
                 asyncio.run(FFMPEGManager().img_to_mp4(input_sequence=input_seq, output_file=output_file, quality=quality))
